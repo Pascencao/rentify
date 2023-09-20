@@ -100,7 +100,7 @@
                 }
             }
             listOfDates = getDates(2023,4, '222')
-            console.log()
+            
         }}>
             <FormGroup  legendText="year">
                 <h3>Año</h3>

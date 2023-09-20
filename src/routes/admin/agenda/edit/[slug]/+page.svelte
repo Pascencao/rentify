@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from "$app/navigation";
     import { page } from "$app/stores";
+    import { onAuthStateChanged } from 'Firebase/auth';
     import ChevronLeft from "$lib/icons/chevron_left.svelte";
     import { Button, ComboBox, DatePicker, DatePickerInput, Form, FormGroup, NumberInput, TextArea, Tile } from "carbon-components-svelte";
     import type { ComboBoxItem } from "carbon-components-svelte/types/ComboBox/ComboBox.svelte";
@@ -9,6 +10,8 @@
     import { getClients } from "../../../../../service/clients/service";
     import { getEquipments } from "../../../../../service/equipments/service";
     import { getRentById, getRents, updateRent, type IRent } from "../../../../../service/rents/service";
+    import { getUser, type IProfile } from "../../../../../service/users/service";
+    import { auth } from "../../../../../service/firebase";
 
     let id = $page.params.slug
     let rent:IRent = {} as IRent;
@@ -16,11 +19,22 @@
     let equipments:ComboBoxItem[] = []
     let formError = {client: false, equipment: false, date: false}
     let otherRents: any[] = [];
+    let profile: IProfile;
     
     onMount(async ()=> {
+        onAuthStateChanged(
+            auth,
+            async (user) => {
+                if(user){
+                    profile = await getUser(user.uid);
+                    equipments = await (await getEquipments())
+                    .filter((e)=>profile.equipments.includes(e.id||''))
+                    .sort((a,b) => a.name.toLowerCase() >= b.name.toLowerCase() ? 1 : -1).map((x:any) => ({id: x.id, text: x.name}));
+                }
+            }
+        );
         otherRents = await getRents();
         clients = await (await getClients()).sort((a,b) => a.name.toLowerCase() >= b.name.toLowerCase() ? 1 : -1).map(x => ({id: x.id, text: x.name}));
-        equipments = await (await getEquipments()).sort((a,b) => a.name.toLowerCase() >= b.name.toLowerCase() ? 1 : -1).map((x:any) => ({id: x.id, text: x.name}));
         let data = await getRentById(id)
 
         rent = {...data, date: moment(data.date).format('DD/MM/YYYY')}

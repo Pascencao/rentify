@@ -1,6 +1,7 @@
 <script lang="ts" async>
     import { goto } from "$app/navigation";
     import ChevronLeft from "$lib/icons/chevron_left.svelte";
+    import { onAuthStateChanged } from 'Firebase/auth';
     import { page } from '$app/stores'
 
     import { Button, ComboBox, DatePicker, DatePickerInput, Form, TextInput, Tile } from "carbon-components-svelte";
@@ -10,8 +11,11 @@
     import type { ComboBoxItem } from "carbon-components-svelte/types/ComboBox/ComboBox.svelte";
     import { getExpensesCategory } from "../../../../../service/utils/service";
     import { getEquipments } from "../../../../../service/equipments/service";
+    import { auth } from "../../../../../service/firebase";
+    import { getUser, type IProfile } from "../../../../../service/users/service";
 
     let equipId = '';
+    let profile:IProfile;
     let expense:IExpense = {date: '', equipment: '', description: '', price: 0, category: ''};
     let error = {date: false,equipment: false, description: false, price: false, category: false}
     let categories:ComboBoxItem[] = [];
@@ -29,13 +33,23 @@
         })
     }
     onMount(async () =>{
-        equipments = await (await getEquipments())
-            .sort((a,b) => a.name.toLowerCase() >= b.name.toLowerCase() ? 1 : -1)
-            .map(x => ({id: x.id, text: x.name} as ComboBoxItem));
-        categories = await (await getExpensesCategory())
-            .sort((a,b) =>  a.label.toLowerCase() >= b.label.toLowerCase() ? 1 : -1)
-            .map(x => ({id: x.id, text: x.label} as ComboBoxItem));
-            await getData()
+
+        onAuthStateChanged(
+            auth,
+            async (user) => {
+                if(user){
+                    profile = await getUser(user.uid);
+                    equipments = await (await getEquipments())
+                    .filter((e)=>profile.equipments.includes(e.id||''))
+                    .sort((a,b) => a.name.toLowerCase() >= b.name.toLowerCase() ? 1 : -1)
+                    .map(x => ({id: x.id, text: x.name} as ComboBoxItem));
+                    categories = await (await getExpensesCategory())
+                        .sort((a,b) =>  a.label.toLowerCase() >= b.label.toLowerCase() ? 1 : -1)
+                        .map(x => ({id: x.id, text: x.label} as ComboBoxItem));
+                        await getData()
+                }
+            }
+        );
     })
     const save = async ()=>{
 

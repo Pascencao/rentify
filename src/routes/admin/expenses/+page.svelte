@@ -1,5 +1,7 @@
 <script lang="ts">
     import { Button, DataTable, Pagination, Toolbar, ToolbarBatchActions, ToolbarContent } from "carbon-components-svelte";
+    import { onAuthStateChanged } from 'Firebase/auth';
+    import { auth } from "../../../service/firebase";
     import TrashCan from "carbon-icons-svelte/lib/TrashCan.svelte";
     import Edit from "carbon-icons-svelte/lib/Edit.svelte";
     
@@ -10,11 +12,23 @@
     import { joinExpense, type IFIlter } from "../../../service/utils";
     import { goto } from "$app/navigation";
     import { getEquipments } from "../../../service/equipments/service";
+    import { onMount } from "svelte";
+    import { getUser, type IProfile } from "../../../service/users/service";
 
     let pageSize:number = 100,page:number = 1, active:boolean = false, selectedRowIds:any[] = [];
     let totalExpenses = 0;
     let expenses: IExpense[] = [];
-    
+    let profile: IProfile;
+    onMount(() => {
+        onAuthStateChanged(
+            auth,
+            async (user) => {
+                if(user){
+                    profile = await getUser(user.uid);
+                }
+            }
+        );
+    });
     const setfilter=({detail: filters}:{detail: IFIlter})=>{
         setData(filters)
     }
@@ -28,12 +42,16 @@
             filters.month >= 0 && filteredDate.month(filters.month);
 
             expenses = joinExpense(expenseData.filter(expense => {
+                // @ts-ignore
+                const eId = expense.equipment;
+                const isAllow = profile.equipments.includes(eId);
                 const isDate = moment(expense.date).isSame(filteredDate, 'month');
                 const isEquip = filters.equipment.length ? filters.equipment.includes(expense.equipment as string) : true;
-                return isDate && isEquip;
+                return isAllow && isDate && isEquip;
             }), equipments)
             expenses.map(exp => {
-            totalExpenses += exp.price
+            //@ts-ignore
+            totalExpenses += parseFloat(exp.price)
         });
         } else {
             expenses = expenseData

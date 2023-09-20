@@ -1,6 +1,7 @@
 <script lang="ts">
     import { goto } from "$app/navigation";
     import { page } from "$app/stores";
+    import { onAuthStateChanged } from 'Firebase/auth';
     import Currency from "$lib/helper/currency.svelte";
     import ChevronLeft from "$lib/icons/chevron_left.svelte";
     import { Button, ComboBox, DatePicker, DatePickerInput, Form, FormGroup, NumberInput, TextArea, Tile, ToastNotification } from "carbon-components-svelte";
@@ -14,6 +15,8 @@
     import { getEquipments } from "../../../../service/equipments/service";
     import { getRents, setRent, type IRent } from "../../../../service/rents/service";
     import { session } from "../../../../service/stores";
+    import { auth } from "../../../../service/firebase";
+    import { getUser, type IProfile } from "../../../../service/users/service";
     moment.defineLocale('es', {
         parentLocale: 'en',
         months: 'Enero_Febrero_Marzo_Abril_Mayo_Junio_Julio_Agosto_Septiembre_Octubre_Noviembre_Diciembre'.split('_'),
@@ -37,11 +40,22 @@
     let selectedClient = '';
     let rents: any[] = [];
     let otherRents: any[] = [];
+    let profile: IProfile;
     
     onMount(async ()=>{
+        onAuthStateChanged(
+            auth,
+            async (user) => {
+                if(user){
+                    profile = await getUser(user.uid);
+                    equipments = await (await getEquipments())
+                    .filter((e)=>profile.equipments.includes(e.id||''))
+                    .sort((a,b) => a.name.toLowerCase() >= b.name.toLowerCase() ? 1 : -1).map(x => ({id: x.id, text: x.name, price: x.rent_price}));
+                }
+            }
+        );
         otherRents = await getRents();
         clients = await (await getClients()).sort((a,b) => a.name.toLowerCase() >= b.name.toLowerCase() ? 1 : -1).map(x => ({id: x.id, text: x.name}));
-        equipments = await (await getEquipments()).sort((a,b) => a.name.toLowerCase() >= b.name.toLowerCase() ? 1 : -1).map(x => ({id: x.id, text: x.name, price: x.rent_price}));
         // this is the URL preloaders 	
         // 03/01 Platinum, Vela Yami, Mio Up
         // 03/03 Laser ADS, Mioup 2, Vela Yami

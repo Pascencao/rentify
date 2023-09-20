@@ -32,6 +32,7 @@
         {key: 'date', value: 'Dia'},
         {key: 'summaryEquip', value: 'Equipos'}
     ]
+    let profile: IProfile;
     let openDelete:boolean = false;
     let openSetPaid:boolean = false;
     let totalEstimated: number = 0;
@@ -51,7 +52,7 @@
             auth,
             async (user) => {
                 if(user){
-                    const profile = await getUser(user.uid);
+                    profile = await getUser(user.uid);
                     users = await (await getUsers()).sort((a:IProfile,b:IProfile)=> a.email?.toLowerCase() >= b.email?.toLowerCase()? 1 : -1)
                         .map(u => ({id: u.id, text: u.email} as ComboBoxItem));
                     
@@ -82,7 +83,9 @@
         rents = await getRents();
         clients = await getClients()
         const data = await joinRent(rents, equipments, clients).sort((a,b)=>moment(a.date).isSameOrBefore(b.date)? -1 :1);
-        data.filter((x:any)=>x.equipment && x.client).filter(rent=>{
+        data.filter((x:any)=>x.equipment && x.client)
+        .filter((x:any) => profile.equipments.includes(x.equipment.id))
+        .filter(rent=>{
             const dateFilter = moment(rent.date).isSame(monthFilter,'month');
             const equipFilter = filters?.equipment?.length ? filters.equipment.includes(rent.equipment.id) : true;
             const clientFilter = filters?.client ? rent.client.id === filters.client : true;

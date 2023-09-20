@@ -13,9 +13,10 @@
     import Dailydelivers from "$lib/dailydelivers.svelte";
     import FreeDates from "$lib/freeDates.svelte";
     import { getExpenses, type IExpense } from "../../../service/expenses/service";
-    import { getUser } from "../../../service/users/service";
+    import { getUser, type IProfile } from "../../../service/users/service";
     import { userRole } from "../../../service/stores";
     
+    let profile:IProfile;
     let dashboardRents: IRent[] = [];
     let filterMonthRate: IRent[] = [];
     let filters:IFIlter = {} as IFIlter;
@@ -28,18 +29,25 @@
             async (user) => {
                 if(user){
                     localStorage.setItem('user', JSON.stringify(user))
-                    const profile = await getUser(user.uid);
+                    profile = await getUser(user.uid);
                     userRole.set(profile)
-                    equipments = await getEquipments();
+                    equipments = await (await getEquipments())
+                        .filter((e)=>profile.equipments.includes(e.id||''));
                     setData();
                 }
             }
         );
     });
     const setData = async () =>{
-        rents = await getRents();
+        rents = await (await getRents())
+            //@ts-ignore
+            .filter((r)=>profile.equipments.includes(r.equipment||''));
         clients = await getClients()
-        expenses = await (await getExpenses()).filter((expense)=>moment(expense.date).year() === filters.year);
+        expenses = await (await getExpenses())
+            //@ts-ignore
+            .filter((e)=>profile.equipments.includes(e.equipment||''))
+            .filter((expense)=>moment(expense.date).year() === filters.year);
+
         currentRents = joinRent(rents, equipments, clients)
         dashboardRents = currentRents.filter((rent)=>{
             return moment(rent.date).year() === filters.year;
@@ -49,7 +57,6 @@
         })
 
     }
-    
 
     const setFilters = ({detail}: {detail: IFIlter})=>{
         filters = detail;

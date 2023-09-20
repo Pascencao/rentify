@@ -4,23 +4,36 @@
     import { Button, ComboBox, DatePicker, DatePickerInput, Form, NumberInput, TextInput, Tile } from "carbon-components-svelte";
     import type { ComboBoxItem } from "carbon-components-svelte/types/ComboBox/ComboBox.svelte";
     import moment from "moment";
+    import { onAuthStateChanged } from 'Firebase/auth';
     import { onMount } from "svelte";
     import { getEquipments } from "../../../../service/equipments/service";
     import { setExpense, type IExpense } from "../../../../service/expenses/service";
     import { getExpensesCategory } from "../../../../service/utils/service";
+    import { auth } from "../../../../service/firebase";
+    import { getUser, type IProfile } from "../../../../service/users/service";
 
+    let profile:IProfile;
     let tickets:IExpense = { date:'', equipment: '', description: '', price: 0, category: ''}
     let error = {date: false, equipment: false, price: false, category: false}
     let categories:ComboBoxItem[] = [];
     let equipments:ComboBoxItem[] = [];
 
     onMount(async () =>{
-        equipments = await (await getEquipments())
-            .sort((a,b) => a.name.toLowerCase() >= b.name.toLowerCase() ? 1 : -1)
-            .map(x => ({id: x.id, text: x.name} as ComboBoxItem));
-        categories = await (await getExpensesCategory())
-            .sort((a,b) => a.label.toLowerCase() >= b.label.toLowerCase() ? 1 : -1)
-            .map(x => ({id: x.id, text: x.label} as ComboBoxItem));
+        onAuthStateChanged(
+            auth,
+            async (user) => {
+                if(user){
+                    profile = await getUser(user.uid);
+                    equipments = await (await getEquipments())
+                        .filter((e)=>profile.equipments.includes(e.id||''))
+                        .sort((a,b) => a.name.toLowerCase() >= b.name.toLowerCase() ? 1 : -1)
+                        .map(x => ({id: x.id, text: x.name} as ComboBoxItem));
+                    categories = await (await getExpensesCategory())
+                        .sort((a,b) => a.label.toLowerCase() >= b.label.toLowerCase() ? 1 : -1)
+                        .map(x => ({id: x.id, text: x.label} as ComboBoxItem));
+                }
+            }
+        );
     })
     const save = async ()=>{
         const category:string = categories.find((x)=> x.id === tickets.category)?.text as string;

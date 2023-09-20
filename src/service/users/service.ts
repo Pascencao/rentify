@@ -10,6 +10,7 @@ export interface IProfile {
     role: string;
     email: string;
     uid: string;
+    equipments:string[];
 }
 
 const userExist = async (uid: string)=>{
@@ -24,12 +25,17 @@ const setNewUser = async (uid: string, email: string)=>{
     });
 }
 const setRole = async (uid:string, role:string)=>{
-    console.log(uid, role, ROLES.includes(role))
     if(ROLES.includes(role)){
         return await update(child(refDb, `profiles/${uid}`), {
             role
         });
     }
+}
+const setEquipments = async (uid:string, equipList:string[])=>{
+    return await update(child(refDb, `profiles/${uid}`), {
+        equipments: equipList
+    });
+    
 }
 const getUser = async (uid: string)=>{
     const snap = await get(child(refDb, `profiles/${uid}`))
@@ -94,5 +100,6 @@ export {
     setNewUser,
     setRole,
     setLogin,
-    getUsers
+    getUsers,
+    setEquipments
 }

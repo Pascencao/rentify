@@ -28,7 +28,6 @@
         rents = joinRent(await getRents(), equipments, []).filter((x)=> {
             return x.client === clientId && moment(x.date).isSame(moment(), 'year')
         }).sort((a,b) => moment(a.date).isSameOrBefore(b.date) ? 1 : -1);
-        console.log(rents)
     }
     onMount(async()=> await getData());
     const save = async ()=>{
