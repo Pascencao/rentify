@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { goto } from "$app/navigation";
+    import { afterNavigate, goto } from "$app/navigation";
     import { page } from "$app/stores";
     import { onAuthStateChanged } from 'Firebase/auth';
     import Currency from "$lib/helper/currency.svelte";
@@ -17,6 +17,7 @@
     import { session } from "../../../../service/stores";
     import { auth } from "../../../../service/firebase";
     import { getUser, type IProfile } from "../../../../service/users/service";
+    import { base } from "$app/paths";
     moment.defineLocale('es', {
         parentLocale: 'en',
         months: 'Enero_Febrero_Marzo_Abril_Mayo_Junio_Julio_Agosto_Septiembre_Octubre_Noviembre_Diciembre'.split('_'),
@@ -42,6 +43,11 @@
     let otherRents: any[] = [];
     let profile: IProfile;
     
+    let previousPage : string = base ;
+
+    afterNavigate(({from}) => {
+        previousPage = `${from?.url.pathname}${from?.url.search}` || previousPage;
+    })
     onMount(async ()=>{
         onAuthStateChanged(
             auth,
@@ -107,7 +113,7 @@
             rent.equipments.map((equip:any) => rentsToSave.push({...toSave, equipment: equip.id, rent_price: equip.price}))
         })
         await rentsToSave.map(async (rent:IRent)=>await setRent(rent))
-        goto('/admin/agenda')
+        goto(previousPage||'/admin/agenda')
     }
     const calcRentPrice = (rent:any) => {
         let price = 0
@@ -132,7 +138,7 @@ $: rents
 	<title>Rentify | Nuevo Alquiler</title>
 </svelte:head>
 <section class="p-4 relative">
-    <h4><Button kind="ghost" icon={ChevronLeft} iconDescription="Volver" href="/admin/agenda"/> Nuevo alquiler</h4>
+    <h4><Button kind="ghost" icon={ChevronLeft} iconDescription="Volver" href={previousPage||"/admin/agenda"}/> Nuevo alquiler</h4>
 
     <div class="flex w-11/12 sm:w-2/4">
         <ComboBox

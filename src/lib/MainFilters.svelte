@@ -12,6 +12,10 @@
     import type { DropdownItem } from "carbon-components-svelte/types/Dropdown/Dropdown.svelte";
     import { getClients, type IClient } from "../service/clients/service";
     import { Close } from "carbon-icons-svelte";
+    import { getUser } from "../service/users/service";
+    import { page } from '$app/stores';
+    import { goto } from "$app/navigation";
+
     interface IFilterConfigs {
         month?: boolean;
         year?: boolean;
@@ -24,7 +28,8 @@
         clients: true,
         equipment: true,
     }
-    let clear= false;
+
+    let clear= false,urlParams:URLSearchParams;
     const yearHelper = [
         moment().subtract(1, "year").year(),
         moment().year(),
@@ -32,22 +37,51 @@
     
     let dispatch = createEventDispatcher(), equipments: DropdownItem[], clients: DropdownItem[];
     let year=moment().year(), month = moment().month(), equipment:string[] = [], client:string = '';
+    const setParams = ()=>{
+        if(month){
+            $page.url.searchParams.set('month', JSON.stringify(month))
+        } else { $page.url.searchParams.delete('month')}
+        if(year){
+            $page.url.searchParams.delete('year')
+        } else { $page.url.searchParams.set('year', JSON.stringify(year))}
+        if(client){
+            $page.url.searchParams.set('client', client)
+        } else {
+            $page.url.searchParams.delete('client')}
+        if(equipment && equipment.length){
+            $page.url.searchParams.set('equipment', equipment.join(','))
+        } else { 
+            $page.url.searchParams.delete('equipment')
+        }
+    }
     const filter = (isDefault?: boolean)=>{
         clear = !isDefault;
+        setParams()
+        goto(`?${$page.url.searchParams.toString()}`);
         dispatch("filter", {year, month, equipment, client} as IFIlter)
     }
     const clearSearch = ()=>{
         clear = false;
         year = moment().year(), month = moment().month(), equipment = [], client = '';
-        dispatch("filter", {year, month, equipment, client} as IFIlter)
+        dispatch("filter", {year, month, equipment, client} as IFIlter);
+        $page.url.searchParams.delete('month')
+        $page.url.searchParams.delete('year')
+        $page.url.searchParams.delete('client')
+        $page.url.searchParams.delete('equipment')
     }
     
     onMount(()=>{
+        month = $page.url.searchParams.get('month') ? parseInt($page.url.searchParams.get('month')||'') : month;
+        year = $page.url.searchParams.get('year') ? parseInt($page.url.searchParams.get('year') || '') : year;
+        client = $page.url.searchParams.get('client') || client;
+        equipment = $page.url.searchParams.get('equipment') ? $page.url.searchParams.get('equipment')?.split(',')||[] : equipment||[];
+        
         onAuthStateChanged(
             auth,
             async (user) => {
                 if(user){
-                    equipments = await (await getEquipments())
+                    const profile = await getUser(user.uid);
+                    equipments = await (await getEquipments()).filter((equips)=>profile.equipments.includes(equips.id||''))
                         .sort((a:IEquipment,b:IEquipment)=> a.name.toLowerCase() >= b.name.toLowerCase()? 1 : -1)
                         .map(equip => ({id: equip.id, text: equip.name}));
                     clients = await (await getClients())
@@ -55,6 +89,7 @@
                         .map(client => ({id: client.id, text: client.name}));
                     equipments.unshift({id: '', text: ''})
                     clients.unshift({id: '', text: ''})
+                    
                 }
             }
         )

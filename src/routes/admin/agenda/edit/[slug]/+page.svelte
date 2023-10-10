@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { goto } from "$app/navigation";
+    import { goto, afterNavigate } from '$app/navigation';
     import { page } from "$app/stores";
     import { onAuthStateChanged } from 'Firebase/auth';
     import ChevronLeft from "$lib/icons/chevron_left.svelte";
@@ -12,6 +12,7 @@
     import { getRentById, getRents, updateRent, type IRent } from "../../../../../service/rents/service";
     import { getUser, type IProfile } from "../../../../../service/users/service";
     import { auth } from "../../../../../service/firebase";
+    import { base } from '$app/paths'
 
     let id = $page.params.slug
     let rent:IRent = {} as IRent;
@@ -20,7 +21,12 @@
     let formError = {client: false, equipment: false, date: false}
     let otherRents: any[] = [];
     let profile: IProfile;
-    
+
+    let previousPage : string = base ;
+
+    afterNavigate(({from}) => {
+        previousPage = `${from?.url.pathname}${from?.url.search}` || previousPage;
+    })
     onMount(async ()=> {
         onAuthStateChanged(
             auth,
@@ -47,7 +53,7 @@
     };
     const prepareDataToSave = async ()=>{
         await updateRent(id, {...rent, date: moment(rent.date, 'DD/MM/YYYY').toString()})
-        goto('/admin/agenda')
+        goto(previousPage || '/admin/agenda')
     };
     const equipByDates = (equips: any, date: string)=>{
         const currentDates = otherRents?.filter((rent)=>moment(rent.date).isSame(moment(date, 'DD/MM/YYYY')))
@@ -65,7 +71,7 @@
 	<title>Rentify | Editar alquiler</title>
 </svelte:head>
 <div class="my-4 p-4">
-    <h4><Button kind="ghost" icon={ChevronLeft} iconDescription="Volver" href="/admin/agenda"/>Editar Fecha</h4>
+    <h4><Button kind="ghost" icon={ChevronLeft} iconDescription="Volver" href={previousPage||'/admin/agenda'}/>Editar Fecha</h4>
     <Tile class="w-3/4 sm:w-1/2 md:w-1/2">
         <ComboBox
             bind:invalid={formError.client}

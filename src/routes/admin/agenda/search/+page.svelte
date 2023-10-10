@@ -5,7 +5,9 @@
     import { getEquipments, type IEquipment } from "../../../../service/equipments/service";
     import { getRents, type IRent } from "../../../../service/rents/service";
     import moment from 'moment';
-    import { Button, Checkbox, Form, FormGroup } from 'carbon-components-svelte';
+    import { Button, Form, Checkbox, FormGroup } from 'carbon-components-svelte';
+    import { goto } from '$app/navigation';
+    
 
     moment.defineLocale('es', {
         parentLocale: 'en',
@@ -21,12 +23,14 @@
         days:{},
         equipments:{}
     };
-    let filters = {};
-    const weekdays = ['Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado'];
+
+    let selectedDates: {[key:string]: any} = {};
+    const weekdays = ['Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo'];
     const MonthsLabel = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const years = [moment().year(), moment().add(1, 'years').year()]
     let equipments: IEquipment[]=[], rents:IRent[]=[];
-    let listOfDates:string[] = []
+    let listOfDates:{[key: string]: string[]} = {};
+
     onMount(async ()=>{
         onAuthStateChanged(
             auth,
@@ -38,75 +42,71 @@
             }
         );
     })
-    const getFreeDates = (freeRents:IRent[])=>{
-        const thisMonth = moment().year(year).month(month);
-        const days = thisMonth.daysInMonth();
-        let result:any[] = []
-        for(let i=1; i<= days; i++){
-            if(
-                !freeRents.find(({date}) => moment(date).date() === i)
-            ){
-                result.push({label: thisMonth.date(i).locale('es-ES').format('ddd DD/MM'), checked: false})
-            }
-        }
-        return result;
-    }
-    const getDates =(year:number, month: number, equip:string, weekday?:number)=>{
+    const getDates =(year:number, month: number, equip:string, weekday:number=-1)=>{
         year = year || moment().year();
         month = month || moment().month();
         let freeDates = []
         const filterMonth = moment().year(year).month(month);
         const totaldays = filterMonth.daysInMonth();
         for (let i = 1; i <= totaldays; i++){
-            let isFilterd = false;
             let hasRent = 0;
-            if(weekday >= 0){
-                isFilterd = filterMonth.date(i).isoWeekday() === weekday;
-                if(isFilterd){
-                    hasRent = rents.filter(rent =>{
-                        return moment(rent.date).isSame(filterMonth.date(i),'date')
-                    })
-                    .filter(rent =>{
-                        return rent.equipment === equip
-                    })
-                    .length
-                }
-            } else {
-                hasRent = rents.filter(rent =>{
-                    return moment(rent.date).isSame(filterMonth.date(i),'date')
-                })
-                .filter(rent =>{
-                    return rent.equipment === equip
-                })
-                .length
-                
-            }
-            if(!hasRent){
+            hasRent = rents.filter(rent => moment(rent.date).isSame(filterMonth.date(i),'date'))
+                .filter(rent => rent.equipment === equip).length
+            
+            const isSelectedWeekday = weekday >=0 ? filterMonth.date(i).isoWeekday() === weekday : true;
+            if(!hasRent && isSelectedWeekday){
                 freeDates.push(filterMonth.date(i).toString())
             }
         }
         return freeDates;
     }
+    const setDefaults = (obj: any)=>{
+        obj.years = obj.years.length ? obj.years : [moment().year()]
+        obj.months = obj.months.length ? obj.months : [0,1,2,3,4,5,6,7,8,9,10,11]
+        obj.days = obj.days.length ? obj.days : [0,1,2,3,4,5,6];
+        obj.equipments = obj.equipments.length ? obj.equipments : equipments.map(e=> e.id);
+        return obj;
+    }
+    const createDate = ()=>{
+        let query:any = {};
+        for (let key in selectedDates){
+            selectedDates[key].map((dat:any) => query[dat] = query[dat] ? [...query[dat], key] : [key]);
+        }
+        const params = new URLSearchParams(query).toString()
+        goto(`/admin/agenda/new?${params}`)
+    }
 </script>
 <section class="m-4">
     <div class="grid grid-cols-4">
-        <Form on:submit={()=>{
-            console.log('FORM SUBMIT', formData)
+        <Form on:submit={(event)=>{
+            let formObj ={equipments: [], months: [], years: [], days: []};
+            selectedDates = {};
             for(let key in formData){
                 for(let key2 in formData[key]){
                     if(formData[key][key2]){
-                        console.log(key, key2)
+                        //@ts-ignore
+                        formObj[key] = formObj[key] ? [...formObj[key], key2.replace('year-', '')] : [key2.replace('year-', '')];
                     };
                 }
             }
-            listOfDates = getDates(2023,4, '222')
+            formObj = setDefaults(formObj);
+            formObj.equipments.map(e =>{
+                formObj.years.map(y => {
+                    formObj.months.map(m =>{
+                        formObj.days.map(wd =>{
+                            listOfDates[e] = [...(listOfDates[e]||[]), ...getDates(parseInt(y),MonthsLabel.indexOf(m), e, parseInt(wd)+1)]
+                                .sort((a,b) => moment(a).isSameOrAfter(b)?1:-1)
+                        })
+                    })
+                })
+            })
             
         }}>
             <FormGroup  legendText="year">
                 <h3>Año</h3>
                 <ul>
                     {#each years as year }
-                    <li><Checkbox value={year} labelText={`${year}`} bind:checked={formData.years[`year-${year}`]}/></li>
+                    <li><Checkbox name={'year'} value={year} labelText={`${year}`} bind:checked={formData.years[`year-${year}`]}/></li>
                     {/each}
                 </ul>
             </FormGroup>
@@ -114,7 +114,7 @@
                 <h3>Mes</h3>
                 <ul>
                     {#each MonthsLabel as month, index }
-                    <li><Checkbox value={index} labelText={month} bind:checked={formData.months[month]} /></li>
+                    <li><Checkbox name={'month'} value={index} labelText={month} bind:checked={formData.months[month]} /></li>
                     {/each}
                 </ul>
             </FormGroup>
@@ -122,7 +122,7 @@
                 <h3>Dia de la semana</h3>
                 <ul>
                     {#each weekdays as day, index }
-                    <li><Checkbox value={index} labelText={day} bind:checked={formData.days[index]}/></li>
+                    <li><Checkbox name='weekday' value={index} labelText={day} bind:checked={formData.days[index]}/></li>
                     {/each}
                 </ul>
             </FormGroup>
@@ -130,16 +130,37 @@
                 <h3>Equipo</h3>
                 <ul>
                     {#each equipments as equip }
-                    <li><Checkbox value={equip.id} labelText={equip.name} bind:checked={formData.equipments[equip?.id||'none']}/></li>
+                    <li><Checkbox name={'equipment'} value={equip.id} labelText={equip.name} bind:checked={formData.equipments[equip?.id||'none']}/></li>
                     {/each}
                 </ul>
             </FormGroup>
             <Button type="submit" > Submit</Button>
         </Form>
         <div>
-            {#each listOfDates as dates}
-                <p>{moment(dates).format('ddd DD/MM/YYYY')}</p>
+            <Button on:click={()=>createDate()}>Nuevo Alquiler</Button>
+
+            {#each equipments as eq}
+                {#if (listOfDates[eq.id||'']||[]).length}
+                    <h4>{eq.name}</h4>
+                    {#each (listOfDates[eq.id || '']||[]) as dates}
+                        <Checkbox on:check={(e)=>{
+                            if(e.detail){
+                                selectedDates[eq.id||''] = selectedDates[eq.id||''] ? [...selectedDates[eq.id||''], moment(dates).format('ddd DD/MM')] : [moment(dates).format('ddd DD/MM')]
+                            } else {
+                                selectedDates[eq.id||''].splice(selectedDates[eq.id||''].indexOf(dates),1)
+                            }
+                        }} labelText={moment(dates).format('ddd DD/MM/YYYY')}></Checkbox>
+                    {/each}
+                {/if}
             {/each}
         </div>
     </div>
 </section>
+
+
+
+I started as a developer on 2011 when the only frontend languages were HTML CSS and JS vanilla (with Jquery) Then I moved to backbone, angular js, Angular (2˜10), reactJs, Sveltejs. I worked on many different environment, Java, nodejs (nestJs, NextJs, Sails, Strapi), Cloud (GCP), Few CMS, among other technologies
+
+I worked with Material design and Bootstrap since the day it started getting popular like 7 years ago. From bootstrap v2 and Material v1. I've also used other css framework like foundation.
+
+Since responsive design became business case for companies I've develop web platforms as responsive. I also use it when it was still on discussion if its better mobile first or desktop first. 
